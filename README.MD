@@ -1,7 +1,7 @@
 <div align="center">
 	<br>
 	<p>
-		<a href="https://discord.gg/AEMGVcnTWp"><img src="https://media.discordapp.net/attachments/1031166956541333675/1109981153282244730/BeFunky-design__1___2_-removebg-preview_1.png?width=497&height=156" width="780" alt="SLashy" /></a>
+		<a href="https://discord.gg/AEMGVcnTWp"><img src="https://media.discordapp.net/attachments/1031166956541333675/1109981153282244730/BeFunky-design__1___2_-removebg-preview_1.png?width=497&height=156" width="780" alt="Slashy" /></a>
 	</p>
 	</br>
 	<a href="https://discord.gg/AEMGVcnTWp"><img src="https://img.shields.io/badge/Support_Server-000?style=for-the-badge&logo=&color=informational" alt="Discord server" /></a>
@@ -16,9 +16,12 @@
 </br>
 </div>
 
-# (TEMPORARILY?) DISCONTINUED
-try this fork instead 
-https://github.com/snappiee/Donkzz
+<div align="center">
+<h2>Discontinued.</h2>
+
+<p>The best Dank Memer selfbots out there are private.</p>
+<p>Isn't it finally time to learn to code?</p>
+</div>
 
  ## About
 Slashy is an advanced Dank Memer Grinder/Farmer Selfbot. It supports all the Dank Memer commands for getting rich and bypasses anti-selfbot measures with intelligent solutions. 
