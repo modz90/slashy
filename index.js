@@ -1,4 +1,7 @@
 // Version 2.1.2
+// Entry point for Slashy — a Dank Memer automation selfbot.
+// Spawns one Discord client per token in tokens.txt, each running
+// the command loop, minigame handler, captcha solver, and web dashboard.
 const version = "2.1.2";
 
 const chalk = require("chalk");
@@ -23,6 +26,8 @@ if (config.webhookLogging && config.webhook) webhook = new Webhook(config.webhoo
 if (config.serverEventsDonate.enabled) console.log(chalk.redBright('SeverEvents Donate is VERY risky at the moment. Bot admins are monitoring server pools usage. You may want to turn this off.'))
 if (config.commands.filter(a => a.command === 'trivia').length > 0) console.log(chalk.redBright('Trivia is VERY risky at the moment. Bot admins are monitoring trivia bots. You may want to turn this off.'))
 
+// Suppress known benign discord.js-selfbot errors that fire during normal operation
+// (race conditions on interaction timeouts, missing buttons, etc.) to keep logs clean.
 process.on("unhandledRejection", (error) => {
   if (error.toString().includes("Cannot read properties of undefined (reading 'type')")) return;
   if (error.toString().includes("INTERACTION_TIMEOUT")) return;
@@ -58,8 +63,10 @@ const SimplDB = require("simpl.db");
 const stripAnsi = require("strip-ansi");
 const express = require("express");
 
+// Persistent key-value store used to track per-account state (daily claim, item usage timestamps, balances).
 const db = new SimplDB();
 
+// Check GitHub for a newer version and warn if one exists.
 axios.get("https://raw.githubusercontent.com/TahaGorme/slashy/main/index.js").then((res) => {
   let v = res.data.match(/Version ([0-9]*\.?)+/)[0]?.replace("Version ", "");
   if (v && v !== version) console.log(chalk.bold.bgRed("There is a new version available: " + v + "\t\nPlease update. " + chalk.underline("https://github.com/TahaGorme/slashy")));
@@ -67,8 +74,11 @@ axios.get("https://raw.githubusercontent.com/TahaGorme/slashy/main/index.js").th
   console.log(error);
 });
 
+// In-memory log buffer; the web dashboard polls /api/console to display these.
 var logs = [];
 
+// Web dashboard — serves the control panel on port 7600 and exposes REST endpoints
+// for the frontend to read config, logs, and database state.
 const app = express();
 app.use(express.json());
 
@@ -135,10 +145,14 @@ app.listen(7600, () => console.log(`App listening on port 7600!`));
 const {
   Client
 } = require("discord.js-selfbot-v13");
+// Each line in tokens.txt is either "<token>" or "<channelId> <token>".
+// The channel-prefixed format is required when playInDms is false.
 const tokens = process.env.tokens ? process.env.tokens.split("\n") : fs.readFileSync("tokens.txt", "utf-8").split("\n");
-const botid = "270904126974590976";
+const botid = "270904126974590976"; // Dank Memer bot ID
 var i = 0;
 
+// payoutOnlyMode runs a single dedicated client that collects the server pool
+// and pays it out to the main account instead of doing the normal grind loop.
 if (config.serverEventsDonate.payoutOnlyMode && config.serverEventsDonate.tokenWhichWillPayout && config.serverEventsDonate.enabled) {
   const client1 = new Client({
     checkUpdate: false
@@ -193,6 +207,7 @@ if (config.serverEventsDonate.payoutOnlyMode && config.serverEventsDonate.tokenW
   })
   client1.login(config.serverEventsDonate.tokenWhichWillPayout);
 } else {
+  // Stagger logins by loginDelay ms per account to avoid triggering Discord's rate limits.
   tokens.forEach((token) => {
     i++;
 
@@ -203,15 +218,17 @@ if (config.serverEventsDonate.payoutOnlyMode && config.serverEventsDonate.tokenW
   });
 };
 
+// Initialises and runs one full bot session for a single Discord account.
+// All state is scoped here — multiple concurrent calls do not share state.
 async function start(token, channelId) {
-  var onGoingCommands = [];
-  var allItemsInInventory = [];
-  var queueCommands = [];
-  var isBotFree = true;
+  var onGoingCommands = []; // commands currently in cooldown
+  var allItemsInInventory = []; // items read from the inventory embed for donation
+  var queueCommands = []; // high-priority commands to run before the random loop
+  var isBotFree = true; // false while waiting for an interaction response (e.g. search/crime prompt)
   var isOnBreak = false;
-  var botNotFreeCount = 0;
-  var isDeadMeme = false;
-  var isPlayingAdventure = false;
+  var botNotFreeCount = 0; // consecutive ticks where the bot was not free; auto-resets at 5
+  var isDeadMeme = false; // postmemes is suppressed for ~3 min after a "dead meme" result
+  var isPlayingAdventure = false; // prevents queuing other commands during an adventure
   var wallet = 0;
   var bank = 0;
   var totalNet = 0;
@@ -278,6 +295,8 @@ async function start(token, channelId) {
     }
 
     if (config.autoVote) {
+      // Authorises via Discord OAuth then calls the discordbotlist upvote endpoint.
+      // Voting gives bonus Dank Memer drops for 12 hours, matching the repeat interval.
       const vote = () => {
         axios.post("https://discord.com/api/v10/oauth2/authorize?client_id=477949690848083968&response_type=code&scope=identify", {
           authorize: true,
@@ -303,7 +322,7 @@ async function start(token, channelId) {
         });
       };
 
-      setInterval(() => vote(), 4.32e+7, true);
+      setInterval(() => vote(), 4.32e+7); // 4.32e+7 ms = 12 hours (discordbotlist vote cooldown)
     };
 
     if (config.serverEventsDonate.enabled && config.playInDms) return console.log(chalk.redBright("Server Events Donate is not supported in DMs. Please disable playInDms in config.json and add channel ids before the tokens in tokens.txt in the format <channelid> <token>"))
@@ -1012,6 +1031,8 @@ async function start(token, channelId) {
     }
   });
 
+  // Parses the ASCII-art grid in Dank Memer minigame embeds to determine the
+  // correct button to press. Emoji IDs are stripped so position counting works.
   async function playMinigames(message) {
     let description = message?.embeds[0]?.description?.replace(/<a?(:[^:]*:)\d+>/g, "$1");
     let positions = description?.split("\n").slice(1).map((e) => e.split(":").filter((e) => e !== ""));
@@ -1043,6 +1064,9 @@ async function start(token, channelId) {
     }
   }
 
+  // Handles every step of an active adventure automatically.
+  // Decision logic is driven by a JSON lookup table (adventures/<name>.json)
+  // that maps embed descriptions to which button label to click.
   async function autoAdventure(newMessage) {
     if (!newMessage?.interaction.commandName.includes("adventure")) return;
     if (!newMessage.interaction) return;
@@ -1105,6 +1129,9 @@ async function start(token, channelId) {
     }
   }
 
+  // Queues a shop purchase, withdrawing from the bank first if the wallet is
+  // short. Local wallet/bank variables are adjusted optimistically so subsequent
+  // buy decisions in the same tick are still accurate.
   async function buyFromShop(cost, item, quantity = "1") {
     if (wallet < cost && bank < cost && !(wallet + bank >= cost)) {
       if (config.devMode) console.log(`${chalk.magentaBright(client.user.tag)}: ${chalk.blue(`Not enough money to buy ${item}`)}`);
@@ -1137,6 +1164,9 @@ async function start(token, channelId) {
     if (config.devMode) console.log(`${chalk.magentaBright(client.user.tag)}: ${chalk.yellowBright(`Bought ${item}`)}`);
   }
 
+  // Picks and sends one random command from config.commands, respecting cooldowns
+  // and the isBotFree flag. Drains queueCommands first if any are pending.
+  // Occasionally injects a balance check or deposit at random (1-in-75 chance each).
   async function randomCommand(onGoingCommands, channel, client, queueCommands) {
     const commands = config.commands;
     const randomCommand = commands[Math.floor(Math.random() * commands.length)];
@@ -1201,6 +1231,9 @@ async function start(token, channelId) {
     }
   }
 
+  // Recursive command loop — calls itself via setTimeout to avoid blocking the event loop.
+  // Randomly schedules short or long breaks based on configured probabilities to
+  // mimic human-like usage patterns.
   async function main(onGoingCommands, channel, client, queueCommands, isOnBreak) {
     var commandCooldown = randomInt(config.cooldowns.commandInterval.minDelay, config.cooldowns.commandInterval.maxDelay);
     var shortBreakCooldown = randomInt(config.cooldowns.shortBreak.minDelay, config.cooldowns.shortBreak.maxDelay);
@@ -1230,16 +1263,19 @@ async function start(token, channelId) {
   }
 }
 
+// Promisified delay used to space out sequential interactions.
 async function wait(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 }
 
+// Inclusive random integer in [min, max].
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Clicks a random button from any of the first (rows+1) component rows.
 async function clickRandomButton(message, rows) {
   const components = message.components[randomInt(0, rows)]?.components;
   if (!components?.length) return;
@@ -1247,12 +1283,15 @@ async function clickRandomButton(message, rows) {
   return message.clickButton(btn)
 }
 
+// Wraps clickButton in a random delay to simulate human reaction time.
 async function clickButton(message, btn) {
   setTimeout(async () => {
     await message.clickButton(btn?.customId);
   }, randomInt(config.cooldowns.buttonClickDelay.minDelay, config.cooldowns.buttonClickDelay.maxDelay));
 }
 
+// Looks up the correct answer for a trivia question using a linear search
+// of the bundled trivia.json database.
 async function findAnswer(question) {
   const trivia = require('./trivia.json');
   for (let i = 0; i < trivia.database.length; i++) {
@@ -1267,6 +1306,9 @@ function formatConsoleDate(date) {
   return chalk.cyanBright('[' + ((hour < 10) ? '0' + hour : hour) + ':' + ((minutes < 10) ? '0' + minutes : minutes) + ':' + ((seconds < 10) ? '0' + seconds : seconds) + '] - ')
 }
 
+// Override console.log/error so every message is also pushed into `logs`,
+// which the web dashboard reads via /api/console. The original methods are
+// preserved and called normally so terminal output is unchanged.
 var log = console.log;
 
 console.log = function () {
