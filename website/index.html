@@ -1,3 +1,7 @@
+<!-- Main control panel dashboard served at / (port 7600).
+     Polls /api/console every 130ms for live logs, /api/database every 5s for
+     balance data, and /api/config on load to populate toggle states.
+     Saves changes back via POST /api/saveThings. -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -820,10 +824,12 @@
       </div>
     </div>
     <script>
+      /* Password is persisted in localStorage so the user is only prompted once. */
       var password =
         localStorage.getItem("password") || prompt("Enter Password");
       if (password) localStorage.setItem("password", password);
 
+      /* DOM references for all toggle checkboxes and their cooldown labels */
       var playInDms = document.getElementById("cb1");
       var autoAdventure = document.getElementById("cb2");
       var autoApple = document.getElementById("cb3");
@@ -867,6 +873,8 @@
       var commandIntervalMin = document.getElementById("b5");
       var commandIntervalMax = document.getElementById("b55");
 
+      /* Save handler — assembles enabled commands and current cooldown values
+         then POSTs them to /api/saveThings to persist to config.json. */
       var save = document.getElementById("save");
       save.addEventListener("click", () => {
         var commands = [];
@@ -1198,6 +1206,7 @@
         });
 
       // if (!password) return;
+      /* Poll the server log buffer every 130ms and render it into the log panel. */
       setInterval(() => {
         fetch("/api/console", {
           headers: {
@@ -1247,6 +1256,9 @@
       //   "This will be displayed as an error in the console and the div."
       // );
 
+      /* Fetches the simpl.db JSON dump and rebuilds the balance table.
+         Totals are recalculated on each call; accumulators are reset afterward
+         so repeated invocations don't double-count. */
       async function fetchBalance() {
         fetch("/api/database", {
           headers: {

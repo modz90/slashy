@@ -1,3 +1,6 @@
+<!-- Full balance view served at /balance (port 7600).
+     Displays wallet, bank, and total net for every tracked account.
+     Refreshes automatically every 5 seconds via /api/database. -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -612,10 +615,11 @@
       </div>
     </div>
     <script>
-            var password =
+      /* Password is shared with the main dashboard via localStorage. */
+      var password =
         localStorage.getItem("password") || prompt("Enter Password");
       if (password) localStorage.setItem("password", password);
-var table = document.getElementById("balance");
+      var table = document.getElementById("balance");
       var totalBal = 0;
       var totalBank = 0;
       var totalNetSum = 0;
@@ -639,6 +643,9 @@ var table = document.getElementById("balance");
         fetchBalance();
       }, 5000);
 
+      /* Fetches balance data and rebuilds the full table.
+         Uses window.location.host so the page works regardless of which host
+         the dashboard is deployed on. Accumulators reset after each render. */
       async function fetchBalance() {
         fetch(window.location.protocol + "//" + window.location.host+"/api/database", {
           headers: {
