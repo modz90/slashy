@@ -296,7 +296,7 @@ async function start(token, channelId) {
             }).then((res) => {
               if (res.data.success) console.log(chalk.yellow(`${client.user.tag} voted`));
             }).catch(err => {
-              if (err.response) console.log(chalk.red(`${client.user.tag} Vote Error: (${err.response.status}) ${error.response.data}`))
+              if (err.response) console.log(chalk.red(`${client.user.tag} Vote Error: (${err.response.status}) ${err.response.data}`))
               else console.log(chalk.red(`${client.user.tag} Vote Error: unknown`))
             });
           })
@@ -404,7 +404,7 @@ async function start(token, channelId) {
       const regex = /([a-zA-Z0-9 ☭']+)\*\* ─ ([0-9,]+)/gm;
 
       let i = 0;
-      inputString.match(regex).forEach(async (item) => {
+      (inputString.match(regex) || []).forEach(async (item) => {
         const itemName = item.trim().split("** ─ ")[0];
         const itemQuantity = item.trim().split("** ─ ")[1]?.replaceAll(',', '');
         if (config.serverEventsDonate.blacklist.includes(itemName)) return i++;
@@ -472,7 +472,7 @@ async function start(token, channelId) {
           clickButton(message, components[a]);
           console.log(chalk.green(`${client.user.tag} solved the captcha!`));
           break;
-        } else if (!captcha.includes(buttonEmoji) && isBotTest) {
+        } else if (!captcha.includes(buttomEmoji) && isBotTest) {
           clickButton(message, components[a]);
           console.log(chalk.green(`${client.user.tag} solved the bot test captcha!`));
           break;
@@ -577,7 +577,7 @@ async function start(token, channelId) {
         if (btn?.label === "F") await clickButton(message, btn);
         else if (message.embeds[0]?.description?.includes("Attack the boss by clicking")) {
           let interval = setInterval(async () => {
-            if (btn.disabled) return interval.clearInterval();
+            if (btn.disabled) return clearInterval(interval);
             await clickButton(message, btn);
           }, randomInt(config.cooldowns.buttonClickDelay.minDelay, config.cooldowns.buttonClickDelay.maxDelay));
         }
@@ -748,7 +748,7 @@ async function start(token, channelId) {
       const regex = /([a-zA-Z0-9 ☭']+)\*\* ─ ([0-9,]+)/gm;
 
       let i = 0;
-      inputString.match(regex).forEach(async (item) => {
+      (inputString.match(regex) || []).forEach(async (item) => {
         const itemName = item.trim().split("** ─ ")[0];
         const itemQuantity = item.trim().split("** ─ ")[1]?.replaceAll(',', '');
         if (config.serverEventsDonate.blacklist.includes(itemName)) return i++;
@@ -943,7 +943,7 @@ async function start(token, channelId) {
           var flag = false;
           const components = message.components[0]?.components;
           let btn;
-          if (components?.length == NaN) return;
+          if (!components?.length) return;
           for (var i = 0; i < components.length; i++) {
             if (components[i].label.includes(answer)) {
               btn = components[i];
