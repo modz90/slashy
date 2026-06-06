@@ -242,8 +242,10 @@ async function start(token, channelId) {
   var channel;
 
   client.on("rateLimit", (rateLimitInfo) => {
-    console.log(chalk.white.bold(client.user.tag + " - Rate Limited"));
-    console.log(chalk.gray(rateLimitInfo));
+    const pauseMs = (rateLimitInfo.timeout || 5000) + 1000;
+    console.log(chalk.white.bold(`${client.user.tag} - Rate Limited for ${(pauseMs / 1000).toFixed(1)}s`));
+    isBotFree = false;
+    setTimeout(() => { isBotFree = true; }, pauseMs);
   });
 
   client.on("ready", async () => {
@@ -1025,6 +1027,12 @@ async function start(token, channelId) {
     // =================== PostMeme Command End ===================
   });
 
+  client.on("disconnect", () => {
+    if (!config.autoRestart) return;
+    console.log(chalk.yellow(`${client.user?.tag || "Bot"} disconnected — reconnecting in 10s...`));
+    setTimeout(() => client.login(token).catch(console.error), 10000);
+  });
+
   client.login(token).catch((err) => {
     if (err.toString().includes("TOKEN_INVALID")) {
       console.log(`${chalk.redBright("ERROR:")} ${chalk.blueBright("The token you provided is invalid")} - ${chalk.blue(token)}`);
@@ -1205,14 +1213,15 @@ async function start(token, channelId) {
         command: "balance",
       });
       if (config.devMode) console.log(`${chalk.magentaBright(client.user.tag)}: ${chalk.blue("Queued balance command")} `);
-    } else {
-      if (randomInt(1, 75) == 4 && config.autoDeposit) {
-        queueCommands.push({
-          command: "deposit",
-          args: ["max"],
-        });
-        if (config.devMode) console.log(`${chalk.magentaBright(client.user.tag)}: ${chalk.yellowBright("Deposited all the coins in the bank")} `);
-      }
+    }
+
+    if (config.autoDeposit && wallet >= (config.depositThreshold || 500000)) {
+      queueCommands.push({
+        command: "deposit",
+        args: ["max"],
+      });
+      wallet = 0;
+      if (config.devMode) console.log(`${chalk.magentaBright(client.user.tag)}: ${chalk.yellowBright("Wallet hit threshold — depositing")} `);
     }
     if (command === "search" || command === "crime" || command === "highlow" || command === "trivia" || command === "postmemes" || command === "stream") isBotFree = false;
 
@@ -1235,6 +1244,21 @@ async function start(token, channelId) {
   // Randomly schedules short or long breaks based on configured probabilities to
   // mimic human-like usage patterns.
   async function main(onGoingCommands, channel, client, queueCommands, isOnBreak) {
+    if (config.activeHours?.enabled) {
+      const hour = new Date().getUTCHours();
+      const { start, end } = config.activeHours;
+      const isActive = start <= end ? (hour >= start && hour < end) : (hour >= start || hour < end);
+      if (!isActive) {
+        const now = new Date();
+        const target = new Date(now);
+        target.setUTCHours(start, 0, 0, 0);
+        if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+        const msUntilStart = target - now;
+        console.log(`${chalk.magentaBright(client.user.tag)}: ${chalk.gray("Outside active hours, sleeping until")} ${chalk.yellowBright(start + ":00 UTC")} (${(msUntilStart / 3600000).toFixed(1)}h)`);
+        return setTimeout(() => main(onGoingCommands, channel, client, queueCommands, false), msUntilStart);
+      }
+    }
+
     var commandCooldown = randomInt(config.cooldowns.commandInterval.minDelay, config.cooldowns.commandInterval.maxDelay);
     var shortBreakCooldown = randomInt(config.cooldowns.shortBreak.minDelay, config.cooldowns.shortBreak.maxDelay);
 
@@ -1326,6 +1350,7 @@ console.log = function () {
   }
 
   logs.push(`<p>${msg}</p>`);
+  if (logs.length > 500) logs.shift();
   log.apply(console, [formatConsoleDate(new Date()) + first_parameter].concat(other_parameters));
 };
 
